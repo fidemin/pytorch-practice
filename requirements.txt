@@ -1,7 +1,0 @@
-jupyterlab==4.2.0
-torch==2.3.0
-torchvision==0.18.0
-torchaudio==2.3.0
-torchvision==0.18.0
-h5py==3.12.1
-pandas==2.2.3

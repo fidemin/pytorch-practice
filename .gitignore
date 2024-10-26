@@ -131,3 +131,6 @@ venv.bak/
 # temp
 temp-*/
 temp
+
+# luna data
+resources/data/luna
