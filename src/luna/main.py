@@ -1,9 +1,16 @@
-from src.luna.dataset import get_candidate_info_list
+"""
+LUNA data can be downloaded from https://luna16.grand-challenge.org/Download/
+"""
+
+from src.luna.core.dataset import get_candidate_info_list
+
 
 if __name__ == "__main__":
     candidate_info_list = get_candidate_info_list(
-        "../../resources/data/luna/candidates.csv",
-        "../../resources/data/luna/annotations.csv",
+        candidate_file_path="../../resources/data/luna/candidates.csv",
+        annotation_file_path="../../resources/data/luna/annotations.csv",
+        require_CT_files=True,
+        dir_of_CT_files="../../resources/data/luna/subsets",
     )
 
     total_data_count = len(candidate_info_list)

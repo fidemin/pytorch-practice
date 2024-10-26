@@ -1,8 +1,12 @@
 import csv
+import glob
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from pathlib import Path
+from typing import List, Tuple, Dict, Set
+
+from toolz import curried as tc
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,16 @@ def _get_candidate_dict(candidate_file_path: str):
     return candidate_dict
 
 
+def _get_series_uid_set_from_ct_files(dir_of_CT_files: str) -> Set[str]:
+    series_uid_set_from_ct_files = tc.pipe(
+        glob.glob(f"{dir_of_CT_files}/subset*/*.mhd"),
+        tc.map(Path),
+        tc.map(lambda p: p.stem),
+        set,
+    )
+    return series_uid_set_from_ct_files
+
+
 @dataclass
 class CandidateInfo:
     series_uid: str
@@ -69,24 +83,37 @@ class CandidateInfo:
 
 
 def get_candidate_info_list(
-    candidate_file_path: str, annotation_file_path: str
+    *,
+    candidate_file_path: str,
+    annotation_file_path: str,
+    require_CT_files: bool = False,
+    dir_of_CT_files: str = None,
 ) -> List[CandidateInfo]:
+
+    series_uid_set_from_ct_files = None
+    if require_CT_files:
+        if dir_of_CT_files is None:
+            raise ValueError(
+                "dir_of_CT_files must be provided if require_CT_files is True"
+            )
+
+        series_uid_set_from_ct_files = _get_series_uid_set_from_ct_files(
+            dir_of_CT_files
+        )
 
     diameter_dict = _get_diameter_dict(annotation_file_path)
     candidate_dict = _get_candidate_dict(candidate_file_path)
 
-    diameter_serial_uids = set(diameter_dict.keys())
-    candidate_serial_uids = set(candidate_dict.keys())
-    intersected_series_uids = diameter_serial_uids & candidate_serial_uids
-    logger.info(
-        f"series_uids size: {len(intersected_series_uids)}, diameter_serial_uids size: {len(diameter_serial_uids)}, candidate_serial_uids size: {len(candidate_serial_uids)}"
-    )
-
     candidate_info_list = []
 
-    for serial_uid in candidate_serial_uids:
+    for serial_uid, candidate_list in candidate_dict.items():
+        if require_CT_files and serial_uid not in series_uid_set_from_ct_files:
+            logger.warning(
+                f"series_uid: {serial_uid} does not have a corresponding CT file"
+            )
+            continue
+
         diameter_list = diameter_dict.get(serial_uid, [])
-        candidate_list = candidate_dict[serial_uid]
 
         if not diameter_list:
             logger.info(f"series_uid: {serial_uid} has no diameter info")
