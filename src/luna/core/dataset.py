@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Set
 
 from toolz import curried as tc
+from torch.utils.data import Dataset
+
+from src.luna.core.ct import CT
 
 logger = logging.getLogger(__name__)
 
@@ -140,3 +143,23 @@ def get_candidate_info_list(
             candidate_info_list.append(candidate_info)
 
     return candidate_info_list
+
+
+class LunaDataset(Dataset):
+    def __init__(self, candidate_info_list: List[CandidateInfo], CT_files_dir: str):
+        self.candidate_info_list = candidate_info_list
+        self.CT_files_dir = CT_files_dir
+
+    def __len__(self):
+        return len(self.candidate_info_list)
+
+    def __getitem__(self, idx):
+        candidate_info = self.candidate_info_list[idx]
+        ct = CT(candidate_info.series_uid, self.CT_files_dir)
+
+        return {
+            "ct_array": ct.ct_array,
+            "center_xyz": candidate_info.center_xyz,
+            "diameter_mm": candidate_info.diameter_mm,
+            "is_nodule": candidate_info.is_nodule,
+        }

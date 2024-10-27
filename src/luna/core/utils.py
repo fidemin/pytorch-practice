@@ -29,7 +29,7 @@ def irc2xyz(
 
     # Convert voxel coordinates to physical coordinates
     xyz_coords = direction @ (xyz_spacing * irc_point) + xyz_origin
-    return tuple(xyz_coords.astype(np.float32))
+    return float(xyz_coords[0]), float(xyz_coords[1]), float(xyz_coords[2])
 
 
 def xyz2irc(
@@ -60,5 +60,5 @@ def xyz2irc(
     voxel_coords = np.linalg.inv(direction) @ (xyz_point - xyz_origin) / xyz_spacing
 
     # Round to nearest integer since voxel indices must be integers
-    irc = tuple(np.round(voxel_coords).astype(int))
-    return irc
+    irc = tuple(np.round(voxel_coords))
+    return int(irc[0]), int(irc[1]), int(irc[2])

@@ -45,3 +45,5 @@ if __name__ == "__main__":
     print(f"IRC from xyz2irc: {irc}")
     print(f"Original XYZ: {xyz}")
     print(f"Recovered XYZ: {xyz_recovered}")
+
+    irc, chunk_arr = ct1.extract_chunk(xyz, (32, 48, 48))
