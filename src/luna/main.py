@@ -2,15 +2,17 @@
 LUNA data can be downloaded from https://luna16.grand-challenge.org/Download/
 """
 
+from src.luna.core.ct import CT
 from src.luna.core.dataset import get_candidate_info_list
-
+from src.luna.core.utils import xyz2irc, irc2xyz
 
 if __name__ == "__main__":
+    CT_files_dir = "../../resources/data/luna/subsets"
     candidate_info_list = get_candidate_info_list(
         candidate_file_path="../../resources/data/luna/candidates.csv",
         annotation_file_path="../../resources/data/luna/annotations.csv",
         require_CT_files=True,
-        dir_of_CT_files="../../resources/data/luna/subsets",
+        CT_files_dir=CT_files_dir,
     )
 
     total_data_count = len(candidate_info_list)
@@ -34,3 +36,12 @@ if __name__ == "__main__":
     assert (
         total_data_count == positive_data_count + negative_data_count + wrong_data_count
     )
+
+    candidate_info = candidate_info_list[100]
+    ct1 = CT(candidate_info.series_uid, CT_files_dir)
+    xyz = (2.7, 123.3, 100.1)
+    irc = xyz2irc(xyz, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
+    xyz_recovered = irc2xyz(irc, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
+    print(f"IRC from xyz2irc: {irc}")
+    print(f"Original XYZ: {xyz}")
+    print(f"Recovered XYZ: {xyz_recovered}")

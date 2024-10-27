@@ -15,6 +15,7 @@ torchaudio = "2.3.0"
 h5py = "3.12.1"
 pandas = "2.2.3"
 toolz = "^1.0.0"
+simpleitk = "^2.4.0"
 
 
 [build-system]

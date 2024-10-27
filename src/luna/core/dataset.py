@@ -87,19 +87,17 @@ def get_candidate_info_list(
     candidate_file_path: str,
     annotation_file_path: str,
     require_CT_files: bool = False,
-    dir_of_CT_files: str = None,
+    CT_files_dir: str = None,
 ) -> List[CandidateInfo]:
 
     series_uid_set_from_ct_files = None
     if require_CT_files:
-        if dir_of_CT_files is None:
+        if CT_files_dir is None:
             raise ValueError(
-                "dir_of_CT_files must be provided if require_CT_files is True"
+                "CT_files_dir must be provided if require_CT_files is True"
             )
 
-        series_uid_set_from_ct_files = _get_series_uid_set_from_ct_files(
-            dir_of_CT_files
-        )
+        series_uid_set_from_ct_files = _get_series_uid_set_from_ct_files(CT_files_dir)
 
     diameter_dict = _get_diameter_dict(annotation_file_path)
     candidate_dict = _get_candidate_dict(candidate_file_path)
