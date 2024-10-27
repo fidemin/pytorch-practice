@@ -33,8 +33,12 @@ class CT:
         center_irc = xyz2irc(
             center_xyz, self.xyz_origin, self.xyz_spacing, self.direction
         )
+
+        # Reorder the center_irc to match CRI order (Channel, Row, Index).
+        center_cri = (center_irc[2], center_irc[1], center_irc[0])
+
         slice_list = []
-        for axis, center_val in enumerate(center_irc):
+        for axis, center_val in enumerate(center_cri):
             start_ndx = int(round(center_val - chunk_shape_cri[axis] / 2))
             end_ndx = int(start_ndx + chunk_shape_cri[axis])
 

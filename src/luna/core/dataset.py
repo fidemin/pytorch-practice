@@ -1,4 +1,6 @@
+import copy
 import csv
+import functools
 import glob
 import logging
 from collections import defaultdict
@@ -6,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Dict, Set
 
+import torch
 from toolz import curried as tc
 from torch.utils.data import Dataset
 
@@ -85,6 +88,7 @@ class CandidateInfo:
     is_nodule: bool
 
 
+@functools.lru_cache(maxsize=1)
 def get_candidate_info_list(
     *,
     candidate_file_path: str,
@@ -142,13 +146,37 @@ def get_candidate_info_list(
             )
             candidate_info_list.append(candidate_info)
 
+    candidate_info_list.sort(
+        key=lambda x: (x.is_nodule, x.diameter_mm, x.series_uid, x.center_xyz),
+        reverse=True,
+    )  # Sort by is_nodule, diameter_mm -> data with diameter_mm = 0 will be at the end
+
     return candidate_info_list
 
 
 class LunaDataset(Dataset):
-    def __init__(self, candidate_info_list: List[CandidateInfo], CT_files_dir: str):
-        self.candidate_info_list = candidate_info_list
+    def __init__(
+        self,
+        candidate_info_list: List[CandidateInfo],
+        CT_files_dir: str,
+        /,
+        *,
+        is_validation: bool = False,
+        validation_ratio: float = None,
+    ):
+        self.candidate_info_list = copy.copy(candidate_info_list)
         self.CT_files_dir = CT_files_dir
+
+        if is_validation:
+            assert (
+                validation_ratio is not None
+            ), "validation_ratio must be provided for is_validation=True"
+            val_stride = int(1 / validation_ratio)
+            self.candidate_info_list = self.candidate_info_list[::val_stride]
+        else:
+            if validation_ratio is not None:
+                val_stride = int(1 / validation_ratio)
+                del self.candidate_info_list[::val_stride]
 
     def __len__(self):
         return len(self.candidate_info_list)
@@ -156,10 +184,21 @@ class LunaDataset(Dataset):
     def __getitem__(self, idx):
         candidate_info = self.candidate_info_list[idx]
         ct = CT(candidate_info.series_uid, self.CT_files_dir)
+        chunk_shape_cri = (32, 48, 48)
 
-        return {
-            "ct_array": ct.ct_array,
-            "center_xyz": candidate_info.center_xyz,
-            "diameter_mm": candidate_info.diameter_mm,
-            "is_nodule": candidate_info.is_nodule,
-        }
+        center_irc, candidate_arr = ct.extract_chunk(
+            candidate_info.center_xyz, chunk_shape_cri
+        )
+
+        candidate_tensor = (
+            torch.from_numpy(candidate_arr)
+            .to(torch.float32)
+            .unsqueeze(0)  # unsqueeze to add channel dimension
+        )
+
+        label_tensor = torch.tensor(
+            [not candidate_info.is_nodule, candidate_info.is_nodule],
+            dtype=torch.long,
+        )
+
+        return candidate_tensor, label_tensor

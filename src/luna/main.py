@@ -3,7 +3,7 @@ LUNA data can be downloaded from https://luna16.grand-challenge.org/Download/
 """
 
 from src.luna.core.ct import CT
-from src.luna.core.dataset import get_candidate_info_list
+from src.luna.core.dataset import get_candidate_info_list, LunaDataset
 from src.luna.core.utils import xyz2irc, irc2xyz
 
 if __name__ == "__main__":
@@ -47,3 +47,9 @@ if __name__ == "__main__":
     print(f"Recovered XYZ: {xyz_recovered}")
 
     irc, chunk_arr = ct1.extract_chunk(xyz, (32, 48, 48))
+    print(f"Center IRC: {irc}, Chunk shape: {chunk_arr.shape}")
+
+    dataset = LunaDataset(candidate_info_list, CT_files_dir, validation_ratio=0.1)
+    print(f"Dataset length: {len(dataset)}")
+    candidate, label = dataset[1]
+    print(f"Candidate shape: {candidate.shape}, Label: {label}")
