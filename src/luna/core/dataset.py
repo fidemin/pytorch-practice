@@ -12,7 +12,7 @@ import torch
 from toolz import curried as tc
 from torch.utils.data import Dataset
 
-from src.luna.core.ct import CT
+from src.luna.core.ct import get_ct
 
 logger = logging.getLogger(__name__)
 
@@ -146,10 +146,12 @@ def get_candidate_info_list(
             )
             candidate_info_list.append(candidate_info)
 
+    # Sort by series_uid, is_nodule, diameter_mm -> data with diameter_mm = 0 will be at the end per series_uid
+    # Sort by main series_uid is important for the caching of get_ct
     candidate_info_list.sort(
-        key=lambda x: (x.is_nodule, x.diameter_mm, x.series_uid, x.center_xyz),
+        key=lambda x: (x.series_uid, x.is_nodule, x.diameter_mm, x.center_xyz),
         reverse=True,
-    )  # Sort by is_nodule, diameter_mm -> data with diameter_mm = 0 will be at the end
+    )
 
     return candidate_info_list
 
@@ -183,7 +185,7 @@ class LunaDataset(Dataset):
 
     def __getitem__(self, idx):
         candidate_info = self.candidate_info_list[idx]
-        ct = CT(candidate_info.series_uid, self.CT_files_dir)
+        ct = get_ct(candidate_info.series_uid, self.CT_files_dir)
         chunk_shape_cri = (32, 48, 48)
 
         center_irc, candidate_arr = ct.extract_chunk(

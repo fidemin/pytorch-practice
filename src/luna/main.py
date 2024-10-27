@@ -2,7 +2,7 @@
 LUNA data can be downloaded from https://luna16.grand-challenge.org/Download/
 """
 
-from src.luna.core.ct import CT
+from src.luna.core.ct import get_ct
 from src.luna.core.dataset import get_candidate_info_list, LunaDataset
 from src.luna.core.utils import xyz2irc, irc2xyz
 
@@ -38,7 +38,8 @@ if __name__ == "__main__":
     )
 
     candidate_info = candidate_info_list[100]
-    ct1 = CT(candidate_info.series_uid, CT_files_dir)
+    ct1 = get_ct(candidate_info.series_uid, CT_files_dir)
+
     xyz = (2.7, 123.3, 100.1)
     irc = xyz2irc(xyz, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
     xyz_recovered = irc2xyz(irc, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
@@ -53,3 +54,20 @@ if __name__ == "__main__":
     print(f"Dataset length: {len(dataset)}")
     candidate, label = dataset[1]
     print(f"Candidate shape: {candidate.shape}, Label: {label}")
+
+    # check time
+    import time
+
+    start = time.time()
+    last_time = start
+    for i, data in enumerate(dataset):
+        count = i + 1
+        if count % 1000 == 0:
+            print(f"Processed {count} data")
+            print(
+                f"Time taken to iterate through the dataset: {time.time() - last_time:.2f} seconds"
+            )
+            last_time = time.time()
+    print(
+        f"Time taken to iterate through the dataset: {time.time() - start:.2f} seconds"
+    )

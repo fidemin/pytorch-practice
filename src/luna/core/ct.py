@@ -1,4 +1,6 @@
+import functools
 import glob
+import logging
 from typing import Tuple
 
 import SimpleITK as sitk
@@ -6,9 +8,12 @@ import numpy as np
 
 from src.luna.core.utils import xyz2irc
 
+logger = logging.getLogger(__name__)
+
 
 class CT:
     def __init__(self, series_uid: str, CT_files_dir: str):
+        # print(f"Loading CT data... with series_uid: {series_uid}")
         mhd_path = glob.glob(f"{CT_files_dir}/subset*/{series_uid}.mhd")[0]
         ct_image = sitk.ReadImage(mhd_path)
         ct_array = np.array(sitk.GetArrayFromImage(ct_image), dtype=np.float32)
@@ -30,6 +35,7 @@ class CT:
         center_xyz: Tuple[float, float, float],
         chunk_shape_cri: Tuple[int, int, int],
     ):
+
         center_irc = xyz2irc(
             center_xyz, self.xyz_origin, self.xyz_spacing, self.direction
         )
@@ -53,3 +59,8 @@ class CT:
             slice_list.append(slice(start_ndx, end_ndx))
         ct_chunk = self.ct_array[tuple(slice_list)]
         return center_irc, ct_chunk
+
+
+@functools.lru_cache(maxsize=1)
+def get_ct(series_uid: str, CT_files_dir: str) -> CT:
+    return CT(series_uid, CT_files_dir)
