@@ -1,6 +1,7 @@
 import functools
 import glob
 import logging
+from dataclasses import dataclass
 from typing import Tuple
 
 import SimpleITK as sitk
@@ -9,6 +10,12 @@ import numpy as np
 from src.luna.core.utils import xyz2irc
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CTChunk:
+    center_irc: Tuple[int, int, int]
+    chunk_arr: np.ndarray
 
 
 class CT:
@@ -21,9 +28,8 @@ class CT:
 
         self.series_uid = series_uid
         self.ct_image = ct_image
-        self.series_uid = series_uid
 
-        # NOTE: ct_array.shape: (C, R, I). NOT Z, Y, X!!!
+        # NOTE: ct_array.shape: (I, C, R). NOT Z, Y, X!!!
         self.ct_array = ct_array
 
         self.xyz_origin = ct_image.GetOrigin()
@@ -33,32 +39,29 @@ class CT:
     def extract_chunk(
         self,
         center_xyz: Tuple[float, float, float],
-        chunk_shape_cri: Tuple[int, int, int],
-    ):
+        chunk_shape_irc: Tuple[int, int, int],
+    ) -> CTChunk:
 
         center_irc = xyz2irc(
             center_xyz, self.xyz_origin, self.xyz_spacing, self.direction
         )
 
-        # Reorder the center_irc to match CRI order (Channel, Row, Index).
-        center_cri = (center_irc[2], center_irc[1], center_irc[0])
-
         slice_list = []
-        for axis, center_val in enumerate(center_cri):
-            start_ndx = int(round(center_val - chunk_shape_cri[axis] / 2))
-            end_ndx = int(start_ndx + chunk_shape_cri[axis])
+        for axis, center_val in enumerate(center_irc):
+            start_ndx = int(round(center_val - chunk_shape_irc[axis] / 2))
+            end_ndx = int(start_ndx + chunk_shape_irc[axis])
 
             if start_ndx < 0:
                 start_ndx = 0
-                end_ndx = int(chunk_shape_cri[axis])
+                end_ndx = int(chunk_shape_irc[axis])
 
             if end_ndx > self.ct_array.shape[axis]:
                 end_ndx = self.ct_array.shape[axis]
-                start_ndx = int(end_ndx - chunk_shape_cri[axis])
+                start_ndx = int(end_ndx - chunk_shape_irc[axis])
 
             slice_list.append(slice(start_ndx, end_ndx))
-        ct_chunk = self.ct_array[tuple(slice_list)]
-        return center_irc, ct_chunk
+        ct_chunk_arr = self.ct_array[tuple(slice_list)]
+        return CTChunk(center_irc, ct_chunk_arr)
 
 
 @functools.lru_cache(maxsize=1)

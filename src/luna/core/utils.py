@@ -25,10 +25,14 @@ def irc2xyz(
     irc_point = np.array(irc_point)
     xyz_origin = np.array(xyz_origin)
     xyz_spacing = np.array(xyz_spacing)
+
+    # direction
+    # [ [Ix Iy Iz], [Rx Ry Rz], [Cx Cy Cz] ]
+    # I: Index cosine, R: Row cosine, C: Column cosine
     direction = np.array(direction).reshape(3, 3)
 
     # Convert voxel coordinates to physical coordinates
-    xyz_coords = direction @ (xyz_spacing * irc_point) + xyz_origin
+    xyz_coords = xyz_origin + direction @ (xyz_spacing * irc_point)
     return float(xyz_coords[0]), float(xyz_coords[1]), float(xyz_coords[2])
 
 
@@ -54,6 +58,10 @@ def xyz2irc(
     xyz_point = np.array(xyz_point)
     xyz_origin = np.array(xyz_origin)
     xyz_spacing = np.array(xyz_spacing)
+
+    # direction
+    # [ [Ix Iy Iz], [Rx Ry Rz], [Cx Cy Cz] ]
+    # I: Index cosine, R: Row cosine, C: Column cosine
     direction = np.array(direction).reshape(3, 3)
 
     # Convert physical coordinates to voxel coordinates

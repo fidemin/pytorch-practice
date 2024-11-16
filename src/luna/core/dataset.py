@@ -186,14 +186,12 @@ class LunaDataset(Dataset):
     def __getitem__(self, idx):
         candidate_info = self.candidate_info_list[idx]
         ct = get_ct(candidate_info.series_uid, self.CT_files_dir)
-        chunk_shape_cri = (32, 48, 48)
+        chunk_shape_irc = (32, 48, 48)
 
-        center_irc, candidate_arr = ct.extract_chunk(
-            candidate_info.center_xyz, chunk_shape_cri
-        )
+        ct_chunk = ct.extract_chunk(candidate_info.center_xyz, chunk_shape_irc)
 
         candidate_tensor = (
-            torch.from_numpy(candidate_arr)
+            torch.from_numpy(ct_chunk.chunk_arr)
             .to(torch.float32)
             .unsqueeze(0)  # unsqueeze to add channel dimension
         )

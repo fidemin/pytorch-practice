@@ -47,8 +47,8 @@ if __name__ == "__main__":
     print(f"Original XYZ: {xyz}")
     print(f"Recovered XYZ: {xyz_recovered}")
 
-    irc, chunk_arr = ct1.extract_chunk(xyz, (32, 48, 48))
-    print(f"Center IRC: {irc}, Chunk shape: {chunk_arr.shape}")
+    ct_chunk = ct1.extract_chunk(xyz, (32, 48, 48))
+    print(f"Center IRC: {irc}, Chunk shape: {ct_chunk.chunk_arr.shape}")
 
     dataset = LunaDataset(candidate_info_list, CT_files_dir, validation_ratio=0.1)
     print(f"Dataset length: {len(dataset)}")
