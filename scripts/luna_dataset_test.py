@@ -3,8 +3,8 @@ LUNA data can be downloaded from https://luna16.grand-challenge.org/Download/
 """
 
 from src.luna.core.ct import get_ct
-from src.luna.core.dataset import get_candidate_info_list, LunaDataset
 from src.luna.core.utils import xyz2irc, irc2xyz
+from src.luna.dataset import get_candidate_info_list, LunaDataset
 
 if __name__ == "__main__":
     CT_files_dir = "../../resources/data/luna/subsets"
