@@ -5,9 +5,9 @@ class ConvolutionBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.relu1 = nn.ReLU(inplace=True)
+        self.relu1 = nn.ReLU()
         self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.relu2 = nn.ReLU(inplace=True)
+        self.relu2 = nn.ReLU()
         self.max_pool = nn.MaxPool3d(2)
 
     def forward(self, x):

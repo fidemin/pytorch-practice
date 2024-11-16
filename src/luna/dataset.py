@@ -206,7 +206,7 @@ class LunaDataset(Dataset):
 
         label_tensor = torch.tensor(
             [not candidate_info.is_nodule, candidate_info.is_nodule],
-            dtype=torch.long,
+            dtype=torch.float,
         )
 
         return candidate_tensor, label_tensor
