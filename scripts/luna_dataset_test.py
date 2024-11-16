@@ -8,9 +8,11 @@ from src.luna.dataset import get_candidate_info_list, LunaDataset
 
 if __name__ == "__main__":
     CT_files_dir = "../../resources/data/luna/subsets"
+    candidate_file_path = "../../resources/data/luna/candidates.csv"
+    annotation_file_path = "../../resources/data/luna/annotations.csv"
     candidate_info_list = get_candidate_info_list(
-        candidate_file_path="../../resources/data/luna/candidates.csv",
-        annotation_file_path="../../resources/data/luna/annotations.csv",
+        candidate_file_path=candidate_file_path,
+        annotation_file_path=annotation_file_path,
         require_CT_files=True,
         CT_files_dir=CT_files_dir,
     )
@@ -50,7 +52,9 @@ if __name__ == "__main__":
     ct_chunk = ct1.extract_chunk(xyz, (32, 48, 48))
     print(f"Center IRC: {irc}, Chunk shape: {ct_chunk.chunk_arr.shape}")
 
-    dataset = LunaDataset(candidate_info_list, CT_files_dir, validation_ratio=0.1)
+    dataset = LunaDataset(
+        candidate_file_path, annotation_file_path, CT_files_dir, validation_ratio=0.1
+    )
     print(f"Dataset length: {len(dataset)}")
     candidate, label = dataset[1]
     print(f"Candidate shape: {candidate.shape}, Label: {label}")

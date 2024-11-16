@@ -159,14 +159,22 @@ def get_candidate_info_list(
 class LunaDataset(Dataset):
     def __init__(
         self,
-        candidate_info_list: List[CandidateInfo],
+        candidate_file_path: str,
+        annotation_file_path: str,
         CT_files_dir: str,
         /,
         *,
         is_validation: bool = False,
         validation_ratio: float = None,
     ):
-        self.candidate_info_list = copy.copy(candidate_info_list)
+        self.candidate_info_list = copy.copy(
+            get_candidate_info_list(
+                candidate_file_path=candidate_file_path,
+                annotation_file_path=annotation_file_path,
+                require_CT_files=True,
+                CT_files_dir=CT_files_dir,
+            )
+        )
         self.CT_files_dir = CT_files_dir
 
         if is_validation:
