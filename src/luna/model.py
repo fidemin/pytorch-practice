@@ -47,7 +47,7 @@ class LunaModel(nn.Module):
         y = y.view(y.size(0), -1)
 
         linear_output = self.fcl(y)
-        softmax = self.softmax(y)
+        softmax = self.softmax(linear_output)
         return linear_output, softmax
 
     def _init_weights(self):

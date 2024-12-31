@@ -46,6 +46,9 @@ class LunaTrainingApp(App):
         self.model = self._init_model()
         self.optimizer = self._init_optimizer()
 
+        # train metrics per epoch
+        self._train_metric_list = []
+
     def run(self):
         print(f"Running with args: {self.args}")
 
@@ -94,15 +97,51 @@ class LunaTrainingApp(App):
     def _train_epoch(self, epoch, data_loader):
         self.model.train()
 
-        for i, (data, target) in enumerate(data_loader):
-            if self.use_cuda or self.use_mps:
-                data = data.to(self.device)
-                target = target.to(self.device)
+        # save metrics for one epoch
+        train_metrics = torch.zeros(
+            3,  # kind of metrics
+            len(data_loader.dataset),
+            device=self.device,
+        )
 
+        for batch_idx, (data, target) in enumerate(data_loader):
+            # reset gradients
             self.optimizer.zero_grad()
-            output, _ = self.model(data)
 
-            loss_variable = nn.CrossEntropyLoss()(output, target)
-            loss_variable.backward()
+            loss_var = self._compute_batch_loss(batch_idx, data, target, train_metrics)
+
+            # backpropagation and optimization
+            loss_var.backward()
             self.optimizer.step()
-            logger.info(f"Epoch: {epoch}, Loss: {loss_variable.item()}")
+
+            logger.info(f"Epoch={epoch} Batch Index={batch_idx} Loss={loss_var.item()}")
+
+        self._train_metric_list.append(train_metrics.to("cpu"))
+
+    def _compute_batch_loss(self, batch_idx, data, target, train_metrics):
+        data = data.to(self.device, non_blocking=True)
+        target = target.to(self.device, non_blocking=True)
+
+        output, probability = self.model(data)
+
+        loss = nn.CrossEntropyLoss(reduction="none")(output, target)
+
+        self._update_train_metrics(
+            train_metrics,
+            batch_idx,
+            self.args.batch_size,
+            target,
+            probability,
+            loss,
+        )
+        return loss.mean()
+
+    def _update_train_metrics(
+        self, train_metrics, batch_idx, batch_size, target, probability, loss_variable
+    ):
+        start_ndx = batch_idx * batch_size
+        end_idx = start_ndx + batch_size
+
+        train_metrics[0, start_ndx:end_idx] = target[:, 1].detach()
+        train_metrics[1, start_ndx:end_idx] = probability[:, 1].detach()
+        train_metrics[2, start_ndx:end_idx] = loss_variable.detach()
