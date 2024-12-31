@@ -1,3 +1,5 @@
+import math
+
 from torch import nn
 
 
@@ -31,6 +33,7 @@ class LunaModel(nn.Module):
 
         self.fcl = nn.Linear(2 * 3 * 3 * 8 * conv_channels, 2)
         self.softmax = nn.Softmax(dim=1)
+        self._init_weights()
 
     def forward(self, x):
         y = self.batch_norm(x)
@@ -46,3 +49,20 @@ class LunaModel(nn.Module):
         linear_output = self.fcl(y)
         softmax = self.softmax(y)
         return linear_output, softmax
+
+    def _init_weights(self):
+        for module in self.modules():
+            if type(module) in {nn.Linear, nn.Conv3d}:
+                nn.init.kaiming_normal_(
+                    module.weight.data,
+                    a=0,
+                    mode="fan_out",
+                    nonlinearity="relu",
+                )
+
+                if module.bias is not None:
+                    _, fan_out = nn.init._calculate_fan_in_and_fan_out(
+                        module.weight.data
+                    )
+                    bound = 1 / math.sqrt(fan_out)
+                    nn.init.normal_(module.bias, -bound, bound)

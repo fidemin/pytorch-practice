@@ -47,7 +47,6 @@ class LunaTrainingApp(App):
         self.optimizer = self._init_optimizer()
 
     def run(self):
-        # TODO: implements this
         print(f"Running with args: {self.args}")
 
         train_ds = LunaDataset(
