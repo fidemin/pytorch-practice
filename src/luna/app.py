@@ -1,12 +1,18 @@
 import argparse
 import logging
+import os
 import sys
+from datetime import datetime
+from pprint import pprint
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from src.core.app import App
+from src.core.const import Mode
 from src.luna.dataset import LunaDataset
 from src.luna.model import LunaModel
 
@@ -37,6 +43,23 @@ class LunaTrainingApp(App):
         )
 
         parser.add_argument(
+            "--tensorboard-log-dir", help="Tensorboard log directory", type=str
+        )
+        parser.add_argument(
+            "--training-data-limit",
+            help="Limit of training data",
+            type=int,
+            default=None,
+        )
+
+        parser.add_argument(
+            "--validation-data-limit",
+            help="Limit of validation data",
+            type=int,
+            default=None,
+        )
+
+        parser.add_argument(
             "--num-workers",
             help="Number of workers for data loader",
             type=int,
@@ -51,10 +74,16 @@ class LunaTrainingApp(App):
 
         self.model = self._init_model()
         self.optimizer = self._init_optimizer()
+        self._total_training_count = 0
 
         # train metrics per epoch
         self._train_metrics_list = []
         self._valid_metrics_list = []
+
+        # init tensorboard writer
+        self._training_writer = None
+        self._validation_writer = None
+        self._init_tensorboard_writer()
 
     def run(self):
         print(f"Running with args: {self.args}")
@@ -90,8 +119,14 @@ class LunaTrainingApp(App):
         )
 
         for epoch in range(1, self.args.num_epochs + 1):
-            self._train_epoch(epoch, train_dl)
-            self._validate_epoch(epoch, valid_dl)
+            self._train_epoch(epoch, train_dl, data_limit=self.args.training_data_limit)
+            self._validate_epoch(
+                epoch, valid_dl, data_limit=self.args.validation_data_limit
+            )
+            self._log_metrics(epoch, Mode.TRAINING, self._train_metrics_list[epoch - 1])
+            self._log_metrics(
+                epoch, Mode.VALIDATION, self._valid_metrics_list[epoch - 1]
+            )
 
     def _get_device(self):
         if self.use_cuda:
@@ -117,7 +152,20 @@ class LunaTrainingApp(App):
     def _init_optimizer(self):
         return torch.optim.SGD(self.model.parameters(), lr=0.001)
 
-    def _train_epoch(self, epoch, data_loader):
+    def _init_tensorboard_writer(self):
+        tensorboard_log_dir = self.args.tensorboard_log_dir
+        if not tensorboard_log_dir:
+            logger.warning(
+                "No tensorboard log directory specified. Tensorboard log will not be saved."
+            )
+            return
+        log_path = os.path.join(
+            tensorboard_log_dir, datetime.now().strftime("%Y%m%d%H%M%S")
+        )
+        self._training_writer = SummaryWriter(log_dir=log_path)
+        self._validation_writer = SummaryWriter(log_dir=log_path)
+
+    def _train_epoch(self, epoch, data_loader, data_limit=None):
         self.model.train()
 
         # save metrics for one epoch
@@ -127,7 +175,10 @@ class LunaTrainingApp(App):
             device=self.device,
         )
 
+        processed_data_count = 0
         for batch_idx, (data, target) in enumerate(data_loader):
+            processed_data_count += len(data)
+
             # reset gradients
             self.optimizer.zero_grad()
 
@@ -141,9 +192,17 @@ class LunaTrainingApp(App):
                 f"Train: Epoch={epoch} Batch Index={batch_idx} Loss={loss_var.item()}"
             )
 
-        self._train_metrics_list.append(train_metrics.to("cpu"))
+            if data_limit and processed_data_count >= data_limit:
+                logger.info(f"Data count limit reached: {data_limit}")
+                break
 
-    def _validate_epoch(self, epoch, data_loader):
+        self._train_metrics_list.append(train_metrics.to("cpu"))
+        self._total_training_count += processed_data_count
+        logger.info(
+            f"Data count: processed_data={processed_data_count}, total_training_data={self._total_training_count}"
+        )
+
+    def _validate_epoch(self, epoch, data_loader, data_limit=None):
         self.model.eval()
 
         # save metrics for one epoch
@@ -154,6 +213,7 @@ class LunaTrainingApp(App):
         )
 
         with torch.no_grad():
+            processed_data_count = 0
             for batch_idx, (data, target) in enumerate(data_loader):
                 loss_var = self._compute_batch_loss(
                     batch_idx, data, target, valid_metrics
@@ -163,9 +223,16 @@ class LunaTrainingApp(App):
                     f"Validation: Epoch={epoch} Batch Index={batch_idx} Loss={loss_var.item()}"
                 )
 
-        self._valid_metrics_list.append(valid_metrics.to("cpu"))
+                processed_data_count += len(data)
 
-    def _compute_batch_loss(self, batch_idx, data, target, train_metrics):
+                if data_limit and processed_data_count >= data_limit:
+                    logger.info(f"Data count limit reached: {data_limit}")
+                    break
+
+        self._valid_metrics_list.append(valid_metrics.to("cpu"))
+        logger.info(f"Total data count: {processed_data_count}")
+
+    def _compute_batch_loss(self, batch_idx, data, target, metrics):
         data = data.to(self.device, non_blocking=True)
         target = target.to(self.device, non_blocking=True)
 
@@ -174,7 +241,7 @@ class LunaTrainingApp(App):
         loss = nn.CrossEntropyLoss(reduction="none")(output, target)
 
         self._update_train_metrics(
-            train_metrics,
+            metrics,
             batch_idx,
             self.args.batch_size,
             target,
@@ -184,13 +251,50 @@ class LunaTrainingApp(App):
         return loss.mean()
 
     def _update_train_metrics(
-        self, train_metrics, batch_idx, batch_size, target, probability, loss_variable
+        self, metrics, batch_idx, batch_size, target, probability, loss_variable
     ):
         start_ndx = batch_idx * batch_size
         end_idx = start_ndx + batch_size
 
-        train_metrics[METRICS_LABEL_IDX, start_ndx:end_idx] = target[:, 1].detach()
-        train_metrics[METRICS_PREDICTION_IDX, start_ndx:end_idx] = probability[
-            :, 1
-        ].detach()
-        train_metrics[METRICS_LOSS_IDX, start_ndx:end_idx] = loss_variable.detach()
+        metrics[METRICS_LABEL_IDX, start_ndx:end_idx] = target[:, 1].detach()
+        metrics[METRICS_PREDICTION_IDX, start_ndx:end_idx] = probability[:, 1].detach()
+        metrics[METRICS_LOSS_IDX, start_ndx:end_idx] = loss_variable.detach()
+
+    def _log_metrics(self, epoch, mode: Mode, metrics_t, threshold=0.5):
+        negative_label_mask = metrics_t[METRICS_LABEL_IDX] <= threshold
+        negative_prediction_mask = metrics_t[METRICS_PREDICTION_IDX] <= threshold
+
+        positive_label_mask = ~negative_label_mask
+        positive_prediction_mask = ~negative_prediction_mask
+
+        negative_count = int(negative_label_mask.sum())
+        positive_count = int(positive_label_mask.sum())
+
+        negative_match_count = int(
+            (negative_label_mask & negative_prediction_mask).sum()
+        )
+
+        positive_match_count = int(
+            (positive_label_mask & positive_prediction_mask).sum()
+        )
+
+        metrics_dict = {
+            "loss/all": metrics_t[METRICS_LOSS_IDX].mean(),
+            "loss/neg": metrics_t[METRICS_LOSS_IDX, negative_label_mask].mean(),
+            "loss/pos": metrics_t[METRICS_LOSS_IDX, positive_label_mask].mean(),
+            "correct/all": (negative_match_count + positive_match_count)
+            / np.float32(metrics_t.shape[1]),
+            "correct/neg": negative_match_count / np.float32(negative_count),
+            "correct/pos": positive_match_count / np.float32(positive_count),
+        }
+
+        pprint(metrics_dict)
+
+        if mode == Mode.TRAINING:
+            writer = self._training_writer
+        else:
+            writer = self._validation_writer
+
+        if writer:
+            for key, value in metrics_dict.items():
+                writer.add_scalar(key, value, self._total_training_count)
