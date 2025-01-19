@@ -36,7 +36,7 @@ class LunaTrainingApp(App):
         parser.add_argument("--annotation-file-path", help="Path to annotation file")
         parser.add_argument("--ct-files-dir", help="Path to CT files directory")
 
-        parser.add_argument("--batch-size", help="Batch size", type=int, default=128)
+        parser.add_argument("--batch-size", help="Batch size", type=int, default=32)
         parser.add_argument(
             "--num-epochs", help="Number of epochs", type=int, default=10
         )
@@ -59,10 +59,17 @@ class LunaTrainingApp(App):
         )
 
         parser.add_argument(
+            "--negative-data-ratio",
+            help="Negative data ratio",
+            type=int,
+            default=None,
+        )
+
+        parser.add_argument(
             "--num-workers",
             help="Number of workers for data loader",
             type=int,
-            default=8,
+            default=4,
         )
 
         self.args = parser.parse_args(argv)
@@ -75,6 +82,8 @@ class LunaTrainingApp(App):
         self.optimizer = self._init_optimizer()
         self._total_training_count = 0
 
+        self._negative_data_ratio = self.args.negative_data_ratio
+
         # train metrics per epoch
         self._train_metrics_list = []
         self._valid_metrics_list = []
@@ -85,14 +94,15 @@ class LunaTrainingApp(App):
         self._init_tensorboard_writer()
 
     def run(self):
-        print(f"Running with args: {self.args}")
+        logger.info(f"Running with args: {self.args}")
 
         train_ds = LunaDataset(
             self.args.candidate_file_path,
             self.args.annotation_file_path,
             self.args.ct_files_dir,
             is_validation=False,
-            validation_ratio=0.01,
+            validation_ratio=0.05,
+            negative_data_ratio=self._negative_data_ratio,
         )
 
         valid_ds = LunaDataset(
@@ -100,9 +110,13 @@ class LunaTrainingApp(App):
             self.args.annotation_file_path,
             self.args.ct_files_dir,
             is_validation=True,
-            validation_ratio=0.01,
+            validation_ratio=0.05,
+            negative_data_ratio=self._negative_data_ratio,
         )
 
+        logger.info(
+            f"DataLoader preparing starts: train={len(train_ds)}, valid={len(valid_ds)}"
+        )
         train_dl = DataLoader(
             train_ds,
             batch_size=self.args.batch_size,
@@ -117,7 +131,12 @@ class LunaTrainingApp(App):
             pin_memory=self.use_cuda or self.use_mps,
         )
 
+        logger.info(
+            f"DataLoader preparing ends: train={len(train_ds)}, valid={len(valid_ds)}"
+        )
         for epoch in range(1, self.args.num_epochs + 1):
+            train_ds.shuffle_samples()
+
             self._train_epoch(epoch, train_dl, data_limit=self.args.training_data_limit)
             self._validate_epoch(
                 epoch, valid_dl, data_limit=self.args.validation_data_limit
@@ -176,6 +195,8 @@ class LunaTrainingApp(App):
 
         processed_data_count = 0
         for batch_idx, (data, target) in enumerate(data_loader):
+            logger.info(f"Train starts: Epoch={epoch} Batch Index={batch_idx}")
+            start_time = datetime.now()
             processed_data_count += len(data)
 
             # reset gradients
@@ -187,8 +208,9 @@ class LunaTrainingApp(App):
             loss_var.backward()
             self.optimizer.step()
 
+            duration = datetime.now() - start_time
             logger.info(
-                f"Train: Epoch={epoch} Batch Index={batch_idx} Loss={loss_var.item()}"
+                f"Train ends: Epoch={epoch} Batch Index={batch_idx} Loss={loss_var.item()} duration={duration}"
             )
 
             if data_limit and processed_data_count >= data_limit:

@@ -33,4 +33,8 @@ if __name__ == "__main__":
     if tensorboard_log_dir:
         args.extend(["--tensorboard-log-dir", tensorboard_log_dir])
 
+    negative_data_ratio = environ.get("NEGATIVE_DATA_RATIO")
+    if negative_data_ratio:
+        args.extend(["--negative-data-ratio", negative_data_ratio])
+
     run(*args)

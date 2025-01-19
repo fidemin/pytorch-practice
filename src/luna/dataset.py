@@ -3,6 +3,7 @@ import csv
 import functools
 import glob
 import logging
+import random
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -166,6 +167,7 @@ class LunaDataset(Dataset):
         *,
         is_validation: bool = False,
         validation_ratio: float = None,
+        negative_data_ratio: float = None,
     ):
         self.candidate_info_list = copy.copy(
             get_candidate_info_list(
@@ -175,7 +177,13 @@ class LunaDataset(Dataset):
                 CT_files_dir=CT_files_dir,
             )
         )
+
         self.CT_files_dir = CT_files_dir
+
+        self.validation_ratio = validation_ratio
+        self.is_validation = is_validation
+
+        self.negative_data_ratio = negative_data_ratio
 
         if is_validation:
             assert (
@@ -188,11 +196,46 @@ class LunaDataset(Dataset):
                 val_stride = int(1 / validation_ratio)
                 del self.candidate_info_list[::val_stride]
 
+        self.positive_list = [c for c in self.candidate_info_list if c.is_nodule]
+        self.negatives_list = [c for c in self.candidate_info_list if not c.is_nodule]
+        logger.info(
+            f"original: positive_data_count={len(self.positive_list)}, negative_data_count={len(self.negatives_list)}"
+        )
+
+    def shuffle_samples(self):
+        if not self.negative_data_ratio:
+            return
+
+        random.shuffle(self.positive_list)
+        random.shuffle(self.negatives_list)
+
     def __len__(self):
-        return len(self.candidate_info_list)
+        if self.negative_data_ratio is not None:
+            total_size = 20000
+            if not self.is_validation:
+                return int(total_size * (1.0 - self.validation_ratio))
+            else:
+                return int(total_size * self.validation_ratio)
+        else:
+            return len(self.candidate_info_list)
 
     def __getitem__(self, idx):
-        candidate_info = self.candidate_info_list[idx]
+        # if self.negative_data_ratio is 1, then we will have 1 positive and 1 negative
+        if self.negative_data_ratio:
+            positive_idx = idx // (self.negative_data_ratio + 1)
+            negative_idx = idx - positive_idx - 1
+
+            if idx % (self.negative_data_ratio + 1) == 0:
+                candidate_info = self.positive_list[
+                    positive_idx % len(self.positive_list)
+                ]
+            else:
+                candidate_info = self.negatives_list[
+                    negative_idx % len(self.negatives_list)
+                ]
+        else:
+            candidate_info = self.candidate_info_list[idx]
+
         ct = get_ct(candidate_info.series_uid, self.CT_files_dir)
         chunk_shape_irc = (32, 48, 48)
 
