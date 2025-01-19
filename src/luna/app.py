@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 from datetime import datetime
-from pprint import pprint
 
 import numpy as np
 import torch
@@ -270,25 +269,38 @@ class LunaTrainingApp(App):
         negative_count = int(negative_label_mask.sum())
         positive_count = int(positive_label_mask.sum())
 
-        negative_match_count = int(
+        true_positive_count = int(
+            (positive_label_mask & positive_prediction_mask).sum()
+        )
+
+        true_negative_count = int(
             (negative_label_mask & negative_prediction_mask).sum()
         )
 
-        positive_match_count = int(
-            (positive_label_mask & positive_prediction_mask).sum()
+        false_positive_count = positive_count - true_positive_count
+        false_negative_count = negative_count - true_negative_count
+
+        precision = true_positive_count / np.float32(
+            true_positive_count + false_positive_count
+        )
+        recall = true_positive_count / np.float32(
+            true_positive_count + false_negative_count
         )
 
         metrics_dict = {
             "loss/all": metrics_t[METRICS_LOSS_IDX].mean(),
             "loss/neg": metrics_t[METRICS_LOSS_IDX, negative_label_mask].mean(),
             "loss/pos": metrics_t[METRICS_LOSS_IDX, positive_label_mask].mean(),
-            "correct/all": (negative_match_count + positive_match_count)
+            "correct/all": (true_negative_count + true_positive_count)
             / np.float32(metrics_t.shape[1]),
-            "correct/neg": negative_match_count / np.float32(negative_count),
-            "correct/pos": positive_match_count / np.float32(positive_count),
+            "correct/neg": true_negative_count / np.float32(negative_count),
+            "correct/pos": true_positive_count / np.float32(positive_count),
+            "pr/precision": precision,
+            "pr/recall": recall,
+            "pr/f1_score": 2 * (precision * recall) / (precision + recall),
         }
 
-        pprint(metrics_dict)
+        logger.info({**metrics_dict, "epoch": epoch, "mode": mode.value})
 
         if mode == Mode.TRAINING:
             writer = self._training_writer
