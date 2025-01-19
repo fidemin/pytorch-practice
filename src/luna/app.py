@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from src.core.app import App
 from src.core.const import Mode
+from src.luna.core.dto import AugmentInfo
 from src.luna.dataset import LunaDataset
 from src.luna.model import LunaModel
 
@@ -72,6 +73,32 @@ class LunaTrainingApp(App):
             default=4,
         )
 
+        # augmentation arguments
+        parser.add_argument(
+            "--augment-flip",
+            help="Augment the training data by random flipping",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--augment-offset",
+            help="Augment the training data with offset",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--augment-scale",
+            help="Augment the training data with scaling",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--augment-rotate",
+            help="Augment the training data by random rotation",
+            action="store_true",
+            default=False,
+        )
+
         self.args = parser.parse_args(argv)
 
         self.use_cuda = torch.cuda.is_available()
@@ -92,6 +119,16 @@ class LunaTrainingApp(App):
         self._training_writer = None
         self._validation_writer = None
         self._init_tensorboard_writer()
+
+        # init augmentation info
+        self._augment_info = AugmentInfo(
+            use_flip=self.args.augment_flip,
+            use_offset=self.args.augment_offset,
+            offset_factor=0.1,
+            use_scale=self.args.augment_scale,
+            scale_factor=0.2,
+            use_rotate=self.args.augment_rotate,
+        )
 
     def run(self):
         logger.info(f"Running with args: {self.args}")

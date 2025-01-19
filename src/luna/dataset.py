@@ -3,6 +3,7 @@ import csv
 import functools
 import glob
 import logging
+import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass
@@ -10,10 +11,12 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Set
 
 import torch
+import torch.nn.functional as F
 from toolz import curried as tc
 from torch.utils.data import Dataset
 
 from src.luna.core.ct import get_ct
+from src.luna.core.dto import AugmentInfo
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +171,7 @@ class LunaDataset(Dataset):
         is_validation: bool = False,
         validation_ratio: float = None,
         negative_data_ratio: float = None,
+        augment_info: AugmentInfo = None,
     ):
         self.candidate_info_list = copy.copy(
             get_candidate_info_list(
@@ -179,6 +183,7 @@ class LunaDataset(Dataset):
         )
 
         self.CT_files_dir = CT_files_dir
+        self.augment_info = augment_info
 
         self.validation_ratio = validation_ratio
         self.is_validation = is_validation
@@ -236,16 +241,20 @@ class LunaDataset(Dataset):
         else:
             candidate_info = self.candidate_info_list[idx]
 
-        ct = get_ct(candidate_info.series_uid, self.CT_files_dir)
         chunk_shape_irc = (32, 48, 48)
-
-        ct_chunk = ct.extract_chunk(candidate_info.center_xyz, chunk_shape_irc)
-
-        candidate_tensor = (
-            torch.from_numpy(ct_chunk.chunk_arr)
-            .to(torch.float32)
-            .unsqueeze(0)  # unsqueeze to add channel dimension
-        )
+        if self.augment_info and not self.is_validation:
+            candidate_tensor = self._get_augmented_ct_candidate(
+                self.augment_info,
+                candidate_info.series_uid,
+                candidate_info.center_xyz,
+                chunk_shape_irc,
+            )
+        else:
+            candidate_tensor = self._get_ct_candidate(
+                candidate_info.series_uid,
+                candidate_info.center_xyz,
+                chunk_shape_irc,
+            )
 
         label_tensor = torch.tensor(
             [not candidate_info.is_nodule, candidate_info.is_nodule],
@@ -253,3 +262,75 @@ class LunaDataset(Dataset):
         )
 
         return candidate_tensor, label_tensor
+
+    def _get_ct_candidate(
+        self,
+        series_uid: str,
+        center_xyz: Tuple[float, float, float],
+        chunk_shape_irc: Tuple[int, int, int],
+    ) -> torch.Tensor:
+        ct = get_ct(series_uid, self.CT_files_dir)
+        ct_chunk = ct.extract_chunk(center_xyz, chunk_shape_irc)
+        # unsqueeze to add channel dimension
+        return torch.from_numpy(ct_chunk.chunk_arr).to(torch.float32).unsqueeze(0)
+
+    def _get_augmented_ct_candidate(
+        self,
+        aug_info: AugmentInfo,
+        series_uid: str,
+        center_xyz: Tuple[float, float, float],
+        chunk_shape_irc: Tuple[int, int, int],
+    ):
+        ct_original_candidate = self._get_ct_candidate(
+            series_uid, center_xyz, chunk_shape_irc
+        )
+
+        # NOTE: N x C x D x H x W. N (batch size) is required for affine_grid
+        ct_t = ct_original_candidate.unsqueeze(0).to(torch.float32)
+
+        # 4x4 matrix -> for rotation matrix compatibility
+        transform_t = torch.eye(4)
+
+        for i in range(3):
+            if aug_info.use_flip:
+                if random.random() > 0.5:
+                    transform_t[i, i] *= -1
+
+            if aug_info.use_offset:
+                offset_value = aug_info.offset_factor
+                random_float = random.random() * 2 - 1  # random float between -1 and 1
+                transform_t[i, 3] *= offset_value * random_float
+
+            if aug_info.use_scale:
+                scale_value = aug_info.scale_factor
+                random_float = random.random() * 2 - 1
+                transform_t[i, i] *= 1.0 + scale_value * random_float
+
+            if aug_info.use_rotate:
+                rotate_angle_rad = random.random() * math.pi * 2  # 0 to 2pi
+                sin_val = math.sin(rotate_angle_rad)
+                cos_val = math.cos(rotate_angle_rad)
+
+                rotation_t = torch.tensor(
+                    [
+                        [cos_val, -sin_val, 0, 0],
+                        [sin_val, cos_val, 0, 0],
+                        [0, 0, 1, 0],
+                        [0, 0, 0, 1],
+                    ]
+                )
+
+                transform_t @= rotation_t
+
+        affine_t = F.affine_grid(
+            transform_t[:3].unsqueeze(0).to(torch.float32),
+            list(ct_t.size()),
+            align_corners=False,
+        )
+
+        augmented_chunk = F.grid_sample(
+            ct_t, affine_t, padding_mode="border", align_corners=False
+        ).to("cpu")
+
+        # remove batch dimension: N x C x D x H x W -> C x D x H x W
+        return augmented_chunk[0]

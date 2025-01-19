@@ -64,6 +64,6 @@ class CT:
         return CTChunk(center_irc, ct_chunk_arr)
 
 
-@functools.lru_cache(maxsize=1)
+@functools.lru_cache(maxsize=1, typed=True)
 def get_ct(series_uid: str, CT_files_dir: str) -> CT:
     return CT(series_uid, CT_files_dir)

@@ -37,4 +37,20 @@ if __name__ == "__main__":
     if negative_data_ratio:
         args.extend(["--negative-data-ratio", negative_data_ratio])
 
+    augment_flip = environ.get("AUGMENT_FLIP")
+    if augment_flip == "true":
+        args.extend(["--augment-flip"])
+
+    augment_offset = environ.get("AUGMENT_OFFSET")
+    if augment_offset == "true":
+        args.extend(["--augment-offset"])
+
+    augment_scale = environ.get("AUGMENT_SCALE")
+    if augment_scale == "true":
+        args.extend(["--augment-scale"])
+
+    augment_rotate = environ.get("AUGMENT_ROTATE")
+    if augment_rotate == "true":
+        args.extend(["--augment-rotate"])
+
     run(*args)
