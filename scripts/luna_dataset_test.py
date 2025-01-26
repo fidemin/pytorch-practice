@@ -44,6 +44,7 @@ if __name__ == "__main__":
 
     xyz = (2.7, 123.3, 100.1)
     irc = xyz2irc(xyz, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
+
     xyz_recovered = irc2xyz(irc, ct1.xyz_origin, ct1.xyz_spacing, ct1.direction)
     print(f"IRC from xyz2irc: {irc}")
     print(f"Original XYZ: {xyz}")

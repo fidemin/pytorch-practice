@@ -22,7 +22,7 @@ def irc2xyz(
         Tuple of (x, y, z) physical coordinates.
     """
     # Convert inputs to NumPy arrays
-    irc_point = np.array(irc_point)
+    cri_point_arr = np.array(irc_point)[::-1]
     xyz_origin = np.array(xyz_origin)
     xyz_spacing = np.array(xyz_spacing)
 
@@ -32,7 +32,8 @@ def irc2xyz(
     direction = np.array(direction).reshape(3, 3)
 
     # Convert voxel coordinates to physical coordinates
-    xyz_coords = xyz_origin + direction @ (xyz_spacing * irc_point)
+    xyz_coords = xyz_origin + direction @ (cri_point_arr * xyz_spacing)
+
     return float(xyz_coords[0]), float(xyz_coords[1]), float(xyz_coords[2])
 
 
@@ -65,8 +66,13 @@ def xyz2irc(
     direction = np.array(direction).reshape(3, 3)
 
     # Convert physical coordinates to voxel coordinates
-    voxel_coords = np.linalg.inv(direction) @ (xyz_point - xyz_origin) / xyz_spacing
+    # from irc2xyz
+    # xyz_coords - xyz_origin = direction @ (cri_point_arr * xyz_spacing)
+    # inv(direction) @ (xyz_coords - xyz_origin) = cri_point_arr * xyz_spacing
+    # inv(direction) @ (xyz_coords - xyz_origin) / xyz_spacing = cri_point_arr
+    voxel_coords = (np.linalg.inv(direction) @ (xyz_point - xyz_origin)) / xyz_spacing
 
     # Round to nearest integer since voxel indices must be integers
-    irc = tuple(np.round(voxel_coords))
-    return int(irc[0]), int(irc[1]), int(irc[2])
+    cri = tuple(np.round(voxel_coords))
+    # return int(irc[0]), int(irc[1]), int(irc[2])
+    return int(cri[2]), int(cri[1]), int(cri[0])
