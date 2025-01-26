@@ -6,7 +6,6 @@ import logging
 import math
 import random
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Dict, Set
 
@@ -16,7 +15,7 @@ from toolz import curried as tc
 from torch.utils.data import Dataset
 
 from src.luna.core.ct import get_ct
-from src.luna.core.dto import AugmentInfo
+from src.luna.core.dto import AugmentInfo, CandidateInfo
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +81,6 @@ def _get_series_uid_set_from_ct_files(dir_of_CT_files: str) -> Set[str]:
         set,
     )
     return series_uid_set_from_ct_files
-
-
-@dataclass
-class CandidateInfo:
-    series_uid: str
-    center_xyz: Tuple[float, float, float]
-    diameter_mm: float
-    is_nodule: bool
 
 
 @functools.lru_cache(maxsize=1)
