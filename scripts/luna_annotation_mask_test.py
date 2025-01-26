@@ -50,9 +50,7 @@ if __name__ == "__main__":
 
         ct = get_ct(series_uid, CT_files_dir)
 
-        is_nodule_mask_array = ct.build_is_nodule_mask(
-            candidate_info_list, threshold_hu=0
-        )
+        is_nodule_mask_array = ct.build_is_nodule_mask(candidate_info_list)
         ct_array = ct.ct_array
 
         for candidate_info in candidate_info_list:
@@ -62,15 +60,10 @@ if __name__ == "__main__":
             )
             ct_chunk = ct.extract_chunk(center_xyz, (32, 48, 48))
 
-            # center_index = int(center_irc[0])
-            # center_row = int(center_irc[1])
-            # center_column = int(center_irc[2])
-
             # Extract the axial slice containing the candidate nodule
             slice_idx = int(center_irc[0])
             try:
-                # ct_slice = ct_array[slice_idx]
-                ct_slice = ct_chunk.chunk_arr[0]
+                ct_slice = ct_array[slice_idx]
                 mask_slice = is_nodule_mask_array[slice_idx]
             except IndexError:
                 print(f"Index out of bounds for {series_uid}")
@@ -83,7 +76,7 @@ if __name__ == "__main__":
                 clim=(-1000, 3000),
                 cmap="gray",
             )  # CT image
-            # plt.imshow(mask_slice, alpha=0.1, cmap="Greens")  # Mask overlay
+            plt.imshow(mask_slice, alpha=0.3, cmap="Blues")  # Mask overlay
             plt.title(f"Series UID: {series_uid}, Slice: {slice_idx}")
             plt.axis("off")
             plt.show()
